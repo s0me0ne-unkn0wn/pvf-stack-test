@@ -1,0 +1,24 @@
+[package]
+name = "pvf-stack-test"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.58"
+clap = { version = "3.2.14", features = ["derive"] }
+rayon = "1.5.3"
+# wasm-smith = { version = "0.11.2" }
+binaryen = { path = "../binaryen-rs" }
+rand = "0.8.5"
+rand_xoshiro = "0.6.0"
+arbitrary = "1"
+parity-wasm = { version = "0.45.0", features = ["multi_value","sign_ext"] }
+#wasm-instrument = { version = "0.2.0", features = ["sign_ext"] }
+wasm-instrument = { path = "../wasm-instrument", features = ["sign_ext"] }
+cranelift = "0.85.1"
+target-lexicon = "0.12.4"
+wasmtime = "0.38.1"
+xmas-elf = "0.8.0"
+iced-x86 = "1.17.0"
