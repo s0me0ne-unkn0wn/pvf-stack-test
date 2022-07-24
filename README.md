@@ -22,7 +22,7 @@ OPTIONS:
 ## Shortcuts
 
 * `make` : Generates `test.log` and `dist.dat` in standard conditions (16000 samples)
-* `make disasm` : Produces `.wat` and `.asm` for output files (generated with `--save`)
-* `make clean` : Removes output files (generated with `--save`), compiled binaries and disassembly results
+* `make disasm` : Produces `.wat` and `.asm` for output files (generated with `--save` or `--seed`)
+* `make clean` : Removes output files (generated with `--save` or `--seed`), compiled binaries and disassembly results
 * `make plot` : Plots current `dist.dat` with `gnuplot`
 * `make calc` : Calculates maximum real_stack_size/estimation ratio in the current `dist.dat` as well as average ratio
