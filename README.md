@@ -15,6 +15,7 @@ OPTIONS:
     -n, --num-batches <NUM_BATCHES>    Number of batches [default: 160]
     -s, --seed <SEED>                  Reproduce a case for single seed, output
                                        out.<seed>.{wasm|cwasm}
+    -t, --single-thread                Run in a single thread
     -v, --save                         Save every .wasm and .cwasm (slow)
     -V, --version                      Print version information
 ```
