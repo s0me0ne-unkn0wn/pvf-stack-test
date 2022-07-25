@@ -35,6 +35,10 @@ struct Cli {
     /// Save every .wasm and .cwasm (slow)
     #[clap(short = 'v', long, value_parser, default_value_t = false, conflicts_with = "seed")]
     save: bool,
+
+    /// Run in a single thread
+    #[clap(short = 't', long, value_parser, default_value_t = false)]
+    single_thread: bool,
 }
 
 fn main() -> Result<()> {
@@ -46,6 +50,10 @@ fn main() -> Result<()> {
 
     if let Some(seed) = cli.seed {
         process_batch(&config, seed, seed + 1, true)?
+            .into_iter()
+            .for_each(|s| println!("{}", s));
+    } else if cli.single_thread {
+        process_batch(&config, 0, cli.num_batches * cli.batch_size, true)?
             .into_iter()
             .for_each(|s| println!("{}", s));
     } else {
@@ -66,7 +74,7 @@ fn process_batch(config: &wasmtime::Config, from: u64, to: u64, save: bool) -> R
 
     for seed in from..to {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(seed);
-        let len: usize = 4096;
+        let len: usize = rng.gen_range(256..65536);
         let data = (0..len).map(|_| rng.gen()).collect::<Vec<u8>>();
 
         // let mut unst = Unstructured::new(&data);
@@ -111,7 +119,7 @@ fn process_batch(config: &wasmtime::Config, from: u64, to: u64, save: bool) -> R
                 .filter(|e| e.get_type() == Ok(Type::Func))
                 .map(|e| (e.value(), e.size(), e.get_name(&elf).unwrap()));
 
-            for i in deffunc_idx..(num_func-1)  {
+            for i in deffunc_idx..num_func  {
                 let sz = eiter.next().unwrap();
                 let cost = compute_stack_cost(i as u32, &module).unwrap();
 
