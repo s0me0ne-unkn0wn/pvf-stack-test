@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::Parser;
 // use wasm_smith;
 
@@ -168,6 +168,11 @@ fn process_batch(config: &wasmtime::Config, from: u64, to: u64, save: bool) -> R
                 let elements::Type::Function(func_signature) =
                     type_section.types().get(func_sig_idx as usize).unwrap();
 
+                let body = module.code_section().ok_or(anyhow!("No code section"))?
+                    .bodies()
+                    .get(i - deffunc_idx)
+                    .ok_or(anyhow!("Function body for the index not found"))?;
+
                 // File::create(format!("out.{}.4.{}.bin", seed, i))?
                 //     .write_all(&bin[(text_offset + sz.0) as usize .. (text_offset + sz.0 + sz.1) as usize])?;
 
@@ -214,13 +219,15 @@ fn process_batch(config: &wasmtime::Config, from: u64, to: u64, save: bool) -> R
                 }
 
                 res.push(format!(
-                    "seed {:6} idx {:2} weight {:4} frame {:4} arg {:2} res {:2} name {:>20}",
+                    "seed {:6} idx {:2} weight {:4} frame {:4} rate {:05.2} arg {:3} res {:2} local {:3} name {:>20}",
                     seed,
                     i,
                     weight,
                     max_frame_size,
+                    max_frame_size as f32 / weight as f32,
                     func_signature.params().len(),
                     func_signature.results().len(),
+                    body.locals().iter().map(|l| l.count()).sum::<u32>(),
                     sz.2
                 ));
             }
