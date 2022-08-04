@@ -26,7 +26,7 @@ use xmas_elf::{
 #[clap(author, version, about, long_about = None)]
 struct Cli {
     /// Reproduce a case for single seed, output out.<seed>.{wasm|cwasm}
-    #[clap(short, long, value_parser)]
+    #[clap(short, long, value_parser, conflicts_with = "wasm")]
     seed: Option<u64>,
 
     /// Batch size
@@ -35,7 +35,7 @@ struct Cli {
         long,
         value_parser,
         default_value_t = 100,
-        conflicts_with = "seed"
+        conflicts_with = "seed,wasm"
     )]
     batch_size: u64,
 
@@ -45,7 +45,7 @@ struct Cli {
         long,
         value_parser,
         default_value_t = 160,
-        conflicts_with = "seed"
+        conflicts_with = "seed,wasm"
     )]
     num_batches: u64,
 
@@ -55,13 +55,23 @@ struct Cli {
         long,
         value_parser,
         default_value_t = false,
-        conflicts_with = "seed"
+        conflicts_with = "seed,wasm"
     )]
     save: bool,
 
     /// Run in a single thread
-    #[clap(short = 't', long, value_parser, default_value_t = false)]
+    #[clap(
+        short = 't',
+        long,
+        value_parser,
+        default_value_t = false,
+        conflicts_with = "wasm"
+    )]
     single_thread: bool,
+
+    /// Run on an externally provided .wasm module
+    #[clap(short = 'w', long, value_parser)]
+    wasm: Option<String>,
 }
 
 fn main() -> Result<()> {
@@ -72,7 +82,12 @@ fn main() -> Result<()> {
     let mut config = wasmtime::Config::new();
     config.target(&target)?;
 
-    if let Some(seed) = cli.seed {
+    if let Some(wasm) = cli.wasm {
+        let module = elements::deserialize_file(&wasm)?;
+        let engine = wasmtime::Engine::new(&config)?;
+        let res = process_module(&engine, &module, cli.save, &wasm)?;
+        res.into_iter().for_each(|s| println!("{}", s));
+    } else if let Some(seed) = cli.seed {
         process_batch(&config, seed, seed + 1, true)?
             .into_iter()
             .for_each(|s| println!("{}", s));
