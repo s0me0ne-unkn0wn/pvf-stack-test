@@ -18,6 +18,7 @@ OPTIONS:
     -t, --single-thread                Run in a single thread
     -v, --save                         Save every .wasm and .cwasm (slow)
     -V, --version                      Print version information
+    -w, --wasm <WASM>                  Run on an externally provided .wasm module
 ```
 
 ## Shortcuts
