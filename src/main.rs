@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use clap::Parser;
+use log::trace;
 // use wasm_smith;
 
 use rand::prelude::*;
@@ -13,7 +14,7 @@ use std::cmp;
 use std::fs::File;
 use std::io::Write;
 use target_lexicon::Triple;
-use wasm_instrument::{compute_stack_height_weight, inject_stack_limiter};
+use wasm_instrument::compute_stack_cost;
 
 use xmas_elf::{
     sections::{SectionData, ShType},
@@ -64,6 +65,7 @@ struct Cli {
 }
 
 fn main() -> Result<()> {
+    env_logger::init();
     let cli = Cli::parse();
 
     let target = Triple::host().to_string();
@@ -75,7 +77,7 @@ fn main() -> Result<()> {
             .into_iter()
             .for_each(|s| println!("{}", s));
     } else if cli.single_thread {
-        process_batch(&config, 0, cli.num_batches * cli.batch_size, true)?
+        process_batch(&config, 0, cli.num_batches * cli.batch_size, cli.save)?
             .into_iter()
             .for_each(|s| println!("{}", s));
     } else {
@@ -109,18 +111,10 @@ fn process_batch(config: &wasmtime::Config, from: u64, to: u64, save: bool) -> R
         let len: usize = rng.gen_range(256..65536);
         let data = (0..len).map(|_| rng.gen()).collect::<Vec<u8>>();
 
-        // let mut unst = Unstructured::new(&data);
-        // let module = wasm_smith::Module::arbitrary(&mut unst)?;
-        // let wasm = module.to_bytes();
-
         let module = binaryen::tools::translate_to_fuzz_mvp(&data);
-        // assert!(module.is_valid());
         let wasm = module.write();
 
-        // File::create(format!("out.{}.1.wasm", seed))?.write_all(&wasm)?;
-
         let module = elements::Module::from_bytes(wasm)?;
-        let module = inject_stack_limiter(module, 2 * 1024 * 1024).unwrap();
 
         if save {
             File::create(format!("out.{}.wasm", seed))?.write_all(&module.clone().into_bytes()?)?;
@@ -156,8 +150,9 @@ fn process_batch(config: &wasmtime::Config, from: u64, to: u64, save: bool) -> R
                 .map(|e| (e.value(), e.size(), e.get_name(&elf).unwrap()));
 
             for i in deffunc_idx..num_func {
+                trace!("======== Seed {}, function {} ========", seed, i);
                 let sz = eiter.next().unwrap();
-                let (_height, weight) = compute_stack_height_weight(i as u32, &module).unwrap();
+                let cost = compute_stack_cost(i as u32, &module).unwrap();
 
                 let func_sig_idx = func_section
                     .entries()
@@ -168,13 +163,12 @@ fn process_batch(config: &wasmtime::Config, from: u64, to: u64, save: bool) -> R
                 let elements::Type::Function(func_signature) =
                     type_section.types().get(func_sig_idx as usize).unwrap();
 
-                let body = module.code_section().ok_or(anyhow!("No code section"))?
+                let body = module
+                    .code_section()
+                    .ok_or_else(|| anyhow!("No code section"))?
                     .bodies()
                     .get(i - deffunc_idx)
-                    .ok_or(anyhow!("Function body for the index not found"))?;
-
-                // File::create(format!("out.{}.4.{}.bin", seed, i))?
-                //     .write_all(&bin[(text_offset + sz.0) as usize .. (text_offset + sz.0 + sz.1) as usize])?;
+                    .ok_or_else(|| anyhow!("Function body for the index not found"))?;
 
                 let mut decoder = Decoder::new(
                     64,
@@ -219,12 +213,12 @@ fn process_batch(config: &wasmtime::Config, from: u64, to: u64, save: bool) -> R
                 }
 
                 res.push(format!(
-                    "seed {:6} idx {:2} weight {:4} frame {:4} rate {:05.2} arg {:3} res {:2} local {:3} name {:>20}",
+                    "seed {:6} idx {:2} cost {:4} frame {:4} rate {:05.2} arg {:3} res {:2} local {:3} name {:>20}",
                     seed,
                     i,
-                    weight,
+                    cost,
                     max_frame_size,
-                    max_frame_size as f32 / weight as f32,
+                    max_frame_size as f32 / cost as f32,
                     func_signature.params().len(),
                     func_signature.results().len(),
                     body.locals().iter().map(|l| l.count()).sum::<u32>(),
