@@ -104,7 +104,7 @@ fn main() -> Result<()> {
                 process_batch(
                     &config,
                     i * cli.batch_size,
-                    i * (cli.batch_size + 1),
+                    (i + 1) * cli.batch_size,
                     cli.save,
                 )
                 .unwrap()
