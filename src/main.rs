@@ -8,7 +8,7 @@ use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rayon::prelude::*;
 // use arbitrary::{ Arbitrary, Unstructured };
-use iced_x86::{Decoder, DecoderOptions, Mnemonic, Register};
+use iced_x86::{Decoder, DecoderOptions, Mnemonic, OpKind, Register};
 use parity_wasm::elements;
 use std::cmp;
 use std::fs::File;
@@ -186,7 +186,7 @@ fn process_module(
             );
             let mut frame_size = 0i64;
             let mut max_frame_size = 0i64;
-            let mut prev_insn: Option<Mnemonic> = None;
+            let mut last_frame_add = 0i64;
 
             for insn in decoder.iter() {
                 frame_size += match insn.mnemonic() {
@@ -201,10 +201,21 @@ fn process_module(
                     // only counting additions residing in a call postamble. That leads to possible
                     // frame size overestimation, but not to underestimations, which is the lesser evil.
                     Mnemonic::Add
-                        if insn.op_register(0) == Register::RSP
-                            && prev_insn == Some(Mnemonic::Call) =>
+                        if insn.op_register(0) == Register::RSP =>
+                            // && prev_insn == Some(Mnemonic::Call) =>
                     {
-                        -(insn.immediate(1) as i64)
+                        last_frame_add = -(insn.immediate(1) as i64);
+                        last_frame_add
+                    }
+
+                    // Catch function postamble and adjust the stack frame size back
+                    Mnemonic::Mov
+                        if insn.op_kind(0) == OpKind::Register
+                            && insn.op_kind(1) == OpKind::Register
+                            && insn.op_register(0) == Register::RSP
+                            && insn.op_register(1) == Register::RBP =>
+                    {
+                        -last_frame_add
                     }
 
                     Mnemonic::Call => 8,
@@ -217,8 +228,6 @@ fn process_module(
                     Mnemonic::Call => 8,
                     _ => 0,
                 };
-
-                prev_insn = Some(insn.mnemonic());
             }
 
             res.push(format!(
