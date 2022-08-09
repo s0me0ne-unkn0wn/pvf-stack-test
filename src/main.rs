@@ -149,8 +149,8 @@ fn process_module(
         .expect("ELF .text section not found")
         .offset();
 
-    let func_section = module.function_section().unwrap();
-    let type_section = module.type_section().unwrap();
+    // let func_section = module.function_section().unwrap();
+    // let type_section = module.type_section().unwrap();
 
     if let SectionData::SymbolTable64(entries) = symtab.get_data(&elf).unwrap() {
         let mut eiter = entries
@@ -163,21 +163,21 @@ fn process_module(
             let sz = eiter.next().unwrap();
             let cost = compute_stack_cost(i as u32, module).unwrap();
 
-            let func_sig_idx = func_section
-                .entries()
-                .get(i - deffunc_idx)
-                .unwrap()
-                .type_ref();
+            // let func_sig_idx = func_section
+            //     .entries()
+            //     .get(i - deffunc_idx)
+            //     .unwrap()
+            //     .type_ref();
 
-            let elements::Type::Function(func_signature) =
-                type_section.types().get(func_sig_idx as usize).unwrap();
+            // let elements::Type::Function(func_signature) =
+            //     type_section.types().get(func_sig_idx as usize).unwrap();
 
-            let body = module
-                .code_section()
-                .ok_or_else(|| anyhow!("No code section"))?
-                .bodies()
-                .get(i - deffunc_idx)
-                .ok_or_else(|| anyhow!("Function body for the index not found"))?;
+            // let body = module
+            //     .code_section()
+            //     .ok_or_else(|| anyhow!("No code section"))?
+            //     .bodies()
+            //     .get(i - deffunc_idx)
+            //     .ok_or_else(|| anyhow!("Function body for the index not found"))?;
 
             let mut decoder = Decoder::new(
                 64,
@@ -231,15 +231,17 @@ fn process_module(
             }
 
             res.push(format!(
-                "name {:6} idx {:2} cost {:4} frame {:4} rate {:05.2} arg {:3} res {:2} local {:3} name {:>20}",
+                "name {:6} idx {:2} cost {:4} frame {:5} rate {:05.2} arg {:3} local {:3} maxstack {:3} maxcstack {:3} blocks {:3} func {:>20}",
                 name,
                 i,
-                cost,
+                cost.total_cost,
                 max_frame_size,
-                max_frame_size as f32 / cost as f32,
-                func_signature.params().len(),
-                func_signature.results().len(),
-                body.locals().iter().map(|l| l.count()).sum::<u32>(),
+                max_frame_size as f32 / cost.total_cost as f32,
+                cost.params_count,
+                cost.locals_count,
+                cost.max_height,
+                cost.max_control_height,
+                cost.blocks_count,
                 sz.2
             ));
         }
@@ -267,7 +269,7 @@ fn process_batch(config: &wasmtime::Config, from: u64, to: u64, save: bool) -> R
             &engine,
             &module,
             save,
-            format!("out.{}", seed),
+            seed.to_string(),
         )?);
     }
 

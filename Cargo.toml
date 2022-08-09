@@ -19,7 +19,8 @@ parity-wasm = { version = "0.45.0", features = ["multi_value","sign_ext"] }
 wasm-instrument = { path = "../wasm-instrument", features = ["sign_ext"] }
 cranelift = "0.85.1"
 target-lexicon = "0.12.4"
-wasmtime = "0.38.1"
+# wasmtime = "0.39"
+wasmtime = { path = "../wasmtime/crates/wasmtime" }
 xmas-elf = "0.8.0"
 iced-x86 = "1.17.0"
 env_logger = "0.9"
