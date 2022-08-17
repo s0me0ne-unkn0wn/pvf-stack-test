@@ -1,16 +1,17 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use clap::Parser;
 use log::trace;
-// use wasm_smith;
+use wasm_smith;
 
 use rand::prelude::*;
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rayon::prelude::*;
-// use arbitrary::{ Arbitrary, Unstructured };
+use arbitrary::{Arbitrary, Unstructured};
 use iced_x86::{Decoder, DecoderOptions, Mnemonic, OpKind, Register};
 use parity_wasm::elements;
 use std::cmp;
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::Write;
 use target_lexicon::Triple;
@@ -74,6 +75,59 @@ struct Cli {
     wasm: Option<String>,
 }
 
+#[derive(Debug,Arbitrary)]
+struct SmithConfig {}
+
+impl wasm_smith::Config for SmithConfig {
+    fn min_types(&self) -> usize { 20 }
+    fn max_types(&self) -> usize { 100 }
+    fn min_imports(&self) -> usize { 0 }
+    fn max_imports(&self) -> usize { 100 }
+    fn available_imports(&self) -> Option<Cow<'_, [u8]>> { None }
+    fn min_funcs(&self) -> usize { 1 }
+    fn max_funcs(&self) -> usize { 10 }
+    fn min_globals(&self) -> usize { 0 }
+    fn max_globals(&self) -> usize { 100 }
+    fn min_exports(&self) -> usize { 0 }
+    fn max_exports(&self) -> usize { 1 }
+    fn export_everything(&self) -> bool { false }
+    fn min_element_segments(&self) -> usize { 0 }
+    fn max_element_segments(&self) -> usize { 100 }
+    fn min_elements(&self) -> usize { 0 }
+    fn max_elements(&self) -> usize { 100 }
+    fn min_data_segments(&self) -> usize { 0 }
+    fn max_data_segments(&self) -> usize { 100 }
+    fn max_instructions(&self) -> usize { 5000 }
+    fn min_memories(&self) -> u32 { 0 }
+    fn max_memories(&self) -> usize { 1 }
+    fn min_tables(&self) -> u32 { 0 }
+    fn max_tables(&self) -> usize { 1 }
+    fn max_memory_pages(&self, _is_64: bool) -> u64 { 1 << 16 }
+    fn memory_max_size_required(&self) -> bool { false }
+    fn max_instances(&self) -> usize { 10 }
+    fn max_modules(&self) -> usize { 10 }
+    fn memory_offset_choices(&self) -> (u32, u32, u32) { (75, 24, 1) }
+    fn min_uleb_size(&self) -> u8 { 1 }
+    fn bulk_memory_enabled(&self) -> bool { false }
+    fn reference_types_enabled(&self) -> bool { false }
+    fn simd_enabled(&self) -> bool { false }
+    fn relaxed_simd_enabled(&self) -> bool { false }
+    fn exceptions_enabled(&self) -> bool { false }
+    fn multi_value_enabled(&self) -> bool { false }
+    fn saturating_float_to_int_enabled(&self) -> bool { false }
+    fn sign_extension_ops_enabled(&self) -> bool { false }
+    fn allow_start_export(&self) -> bool { true }
+    fn max_aliases(&self) -> usize { 1000 }
+    fn max_nesting_depth(&self) -> usize { 10 }
+    fn max_type_size(&self) -> u32 { 1000 }
+    fn memory64_enabled(&self) -> bool { false }
+    fn canonicalize_nans(&self) -> bool { false }
+    fn threads_enabled(&self) -> bool { false }
+    fn allowed_instructions(&self) -> wasm_smith::InstructionKinds { wasm_smith::InstructionKinds::all() }
+    fn max_table_elements(&self) -> u32 { 100 }
+    fn table_max_size_required(&self) -> bool { false }
+}
+
 fn main() -> Result<()> {
     env_logger::init();
     let cli = Cli::parse();
@@ -82,6 +136,8 @@ fn main() -> Result<()> {
     let mut config = wasmtime::Config::new();
     config.target(&target)?;
 
+    // println!("name,idx,cost,frame,rate,arg,local,maxstack,maxcstack,blocks,push,lset,opcode,func");
+    println!("name,idx,frame,arg,local,maxstack,maxcstack,blocks,push,lset,opcode");
     if let Some(wasm) = cli.wasm {
         let module = elements::deserialize_file(&wasm)?;
         let engine = wasmtime::Engine::new(&config)?;
@@ -231,18 +287,22 @@ fn process_module(
             }
 
             res.push(format!(
-                "name {:6} idx {:2} cost {:4} frame {:5} rate {:05.2} arg {:3} local {:3} maxstack {:3} maxcstack {:3} blocks {:3} func {:>20}",
+                "{},{},{},{},{},{},{},{},{},{},{}",
+                // "{},{},{},{},{:05.2},{},{},{},{},{},{},{},{},{}",
                 name,
                 i,
-                cost.total_cost,
+                // cost.total_cost,
                 max_frame_size,
-                max_frame_size as f32 / cost.total_cost as f32,
+                // max_frame_size as f32 / cost.total_cost as f32,
                 cost.params_count,
                 cost.locals_count,
                 cost.max_height,
                 cost.max_control_height,
                 cost.blocks_count,
-                sz.2
+                cost.push_count,
+                cost.local_set_count,
+                cost.opcode_count,
+                // sz.2
             ));
         }
     } else {
@@ -258,11 +318,15 @@ fn process_batch(config: &wasmtime::Config, from: u64, to: u64, save: bool) -> R
 
     for seed in from..to {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(seed);
-        let len: usize = rng.gen_range(256..65536);
+        let len: usize = rng.gen_range(65536..65536*256);
         let data = (0..len).map(|_| rng.gen()).collect::<Vec<u8>>();
 
-        let module = binaryen::tools::translate_to_fuzz_mvp(&data);
-        let wasm = module.write();
+        let mut unst = Unstructured::new(&data);
+        let module = wasm_smith::ConfiguredModule::<SmithConfig>::arbitrary(&mut unst)?.module;
+        let wasm = module.to_bytes();
+
+        // let module = binaryen::tools::translate_to_fuzz_mvp(&data);
+        // let wasm = module.write();
 
         let module = elements::Module::from_bytes(wasm)?;
         res.extend(process_module(

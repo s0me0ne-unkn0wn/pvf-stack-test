@@ -9,8 +9,9 @@ edition = "2021"
 anyhow = "1.0.58"
 clap = { version = "3.2.14", features = ["derive"] }
 rayon = "1.5.3"
-# wasm-smith = { version = "0.11.2" }
-binaryen = { path = "../binaryen-rs" }
+wasm-smith = "0.11"
+# wasm-smith = { path = "../wasm-tools/crates/wasm-smith" }
+# binaryen = { path = "../binaryen-rs" }
 rand = "0.8.5"
 rand_xoshiro = "0.6.0"
 arbitrary = "1"
