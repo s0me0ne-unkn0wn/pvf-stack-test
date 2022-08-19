@@ -22,7 +22,7 @@ gen:
 			s/%add%/join(qq|\\n    |, (map { qq|i64.add| } (0..(0+'$$i'-1))))/e; \
 			s/%calladd%/join(qq|\\n    |, (map { (qq|local.get \$$_|, qq|call 1|, qq|i64.add|) } (0..(0+'$$i'-1))))/e; \
 			s/%getcall%/join(qq|\\n    |, (map { (qq|local.get \$$_|, qq|call 1|) } (0..(0+'$$i'-1))))/e; \
-			s/%constand%/join(qq|\\n      |, (map { (qq|i32.const -\$$_|, qq|i32.const -\$$_|, qq|i32.const \$$_|, qq|i32.and|, qq|i32.store|) } (1..(0+'$$i'))))/e; \
+			s/%constand%/join(qq|\\n      |, (map { (qq|i32.const -\$$_|, qq|i32.const \$$_|, qq|i32.store|) } (1..(0+'$$i'))))/e; \
 		" >$$i.wat; \
 	done
 

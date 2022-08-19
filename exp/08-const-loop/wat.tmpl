@@ -1,12 +1,10 @@
 (module
-  (type (;0;) (func (result i32)))
+  (type (;0;) (func))
   (func (;0;) (type 0)
     loop
       %constand%
-      i32.const 0
-      br_if 0
+      br 0
     end
-    i32.const 0
   )
   (memory 1 1)
   (global (mut i32) (i32.const 12873681))
