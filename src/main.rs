@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use clap::Parser;
 use log::trace;
 // use wasm_smith;
@@ -7,10 +7,11 @@ use rand::prelude::*;
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rayon::prelude::*;
-// use arbitrary::{ Arbitrary, Unstructured };
+// use arbitrary::{Arbitrary, Unstructured};
 use iced_x86::{Decoder, DecoderOptions, Mnemonic, OpKind, Register};
 use parity_wasm::elements;
 use std::cmp;
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::Write;
 use target_lexicon::Triple;
@@ -82,6 +83,8 @@ fn main() -> Result<()> {
     let mut config = wasmtime::Config::new();
     config.target(&target)?;
 
+    // println!("name,idx,cost,frame,rate,arg,local,maxstack,maxcstack,blocks,push,lset,opcode,func");
+    println!("name,idx,cost,frame,arg,local,maxstack,maxcstack,blocks,push,lset,opcode");
     if let Some(wasm) = cli.wasm {
         let module = elements::deserialize_file(&wasm)?;
         let engine = wasmtime::Engine::new(&config)?;
@@ -231,18 +234,22 @@ fn process_module(
             }
 
             res.push(format!(
-                "name {:6} idx {:2} cost {:4} frame {:5} rate {:05.2} arg {:3} local {:3} maxstack {:3} maxcstack {:3} blocks {:3} func {:>20}",
+                "{},{},{},{},{},{},{},{},{},{},{},{}",
+                // "{},{},{},{},{:05.2},{},{},{},{},{},{},{},{},{}",
                 name,
                 i,
-                cost.total_cost,
+                (cost.push_count + cost.local_set_count) * cost.blocks_count, // cost.total_cost,
                 max_frame_size,
-                max_frame_size as f32 / cost.total_cost as f32,
+                // max_frame_size as f32 / cost.total_cost as f32,
                 cost.params_count,
                 cost.locals_count,
                 cost.max_height,
                 cost.max_control_height,
                 cost.blocks_count,
-                sz.2
+                cost.push_count,
+                cost.local_set_count,
+                cost.opcode_count,
+                // sz.2
             ));
         }
     } else {
@@ -260,6 +267,10 @@ fn process_batch(config: &wasmtime::Config, from: u64, to: u64, save: bool) -> R
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(seed);
         let len: usize = rng.gen_range(256..65536);
         let data = (0..len).map(|_| rng.gen()).collect::<Vec<u8>>();
+
+        // let mut unst = Unstructured::new(&data);
+        // let module = wasm_smith::ConfiguredModule::<SmithConfig>::arbitrary(&mut unst)?.module;
+        // let wasm = module.to_bytes();
 
         let module = binaryen::tools::translate_to_fuzz_mvp(&data);
         let wasm = module.write();
